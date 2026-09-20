@@ -47,19 +47,31 @@ class LLM:
         self.client = anthropic.Anthropic(default_headers=headers)
         self.model = model
 
-    def generate(self, context: list[str], max_tokens: int = 50) -> str:
+    def generate(self, context: list[str], max_tokens: int = 200) -> str:
         # Everything in the context window is presented to the model at once.
         prompt = "\n\n".join(context)
-        response = self.client.messages.create(
+        response = self.client.beta.messages.create(
             model=self.model,
             max_tokens=max_tokens,
             # max_tokens is tiny, so keep it all for the visible answer.
             thinking={"type": "disabled"},
+            system="Answer concisely in plain text, no markdown, at most 4 short lines.",
             messages=[{"role": "user", "content": prompt}],
+            # The model's safety classifiers can occasionally decline a harmless
+            # request; with "default" the API re-runs a declined request on a
+            # fallback model instead of returning an empty refusal.
+            betas=["server-side-fallback-2026-07-01"],
+            extra_body={"fallbacks": "default"},
         )
         text = "".join(b.text for b in response.content if b.type == "text")
         if response.stop_reason == "max_tokens":
             text += " [...cut off by max_tokens]"
+        if not text.strip():
+            details = getattr(response, "stop_details", None)
+            text = (
+                f"[no answer: stop_reason={response.stop_reason}, "
+                f"model={response.model}, details={details}]"
+            )
         return text
 
 
@@ -77,7 +89,7 @@ def build_context_window() -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dry-run", action="store_true", help="print the context window without calling the model")
-    parser.add_argument("--max-tokens", type=int, default=50, help="answer length limit (slide uses 50)")
+    parser.add_argument("--max-tokens", type=int, default=200, help="answer length limit (the slide uses 50, which cuts most answers off)")
     args = parser.parse_args()
 
     context_window = build_context_window()

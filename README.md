@@ -28,7 +28,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 python context_window.py             # calls Claude and compares the two answers
 python context_window.py --dry-run   # only prints the assembled context (no API call, no key needed)
-python context_window.py --max-tokens 120   # allow longer answers (slide uses 50)
+python context_window.py --max-tokens 120   # change the answer length limit (default 200, the slide uses 50)
 ```
 
 Optional environment variables:
@@ -104,28 +104,40 @@ class LLM:
         self.client = anthropic.Anthropic()   # reads ANTHROPIC_API_KEY
         self.model = model
 
-    def generate(self, context: list[str], max_tokens: int = 50) -> str:
-        prompt = "\n\n".join(context)
-        response = self.client.messages.create(
+    def generate(self, context: list[str], max_tokens: int = 200) -> str:
+        prompt = "
+
+".join(context)
+        response = self.client.beta.messages.create(
             model=self.model,
             max_tokens=max_tokens,
             thinking={"type": "disabled"},
+            system="Answer concisely in plain text, no markdown, at most 4 short lines.",
             messages=[{"role": "user", "content": prompt}],
+            betas=["server-side-fallback-2026-07-01"],
+            extra_body={"fallbacks": "default"},
         )
         text = "".join(b.text for b in response.content if b.type == "text")
         if response.stop_reason == "max_tokens":
             text += " [...cut off by max_tokens]"
+        if not text.strip():
+            text = f"[no answer: stop_reason={response.stop_reason}, ...]"
         return text
 ```
 
 The slide's `llm` object doesn't exist in any library, so this small class provides it. Line by line:
 
-- **`"\n\n".join(context)`** – the list of context items is flattened into one text. Everything ends up in a single request, so the model sees all of it *at once* – that is what "context window" means.
-- **`client.messages.create(...)`** – the actual call to the Claude API.
-- **`max_tokens`** – the maximum length of the *answer* (not of the context). The slide uses 50, which is why answers can be short and may get cut off.
-- **`thinking={"type": "disabled"}`** – with such a small `max_tokens`, internal reasoning could consume the whole budget before any visible text is produced, so it is turned off for this demo.
+- **`"
+
+".join(context)`** – the list of context items is flattened into one text. Everything ends up in a single request, so the model sees all of it *at once* – that is what "context window" means.
+- **`client.beta.messages.create(...)`** – the actual call to the Claude API (the beta endpoint is needed for the fallback option below).
+- **`max_tokens`** – the maximum length of the *answer* (not of the context). The slide uses 50, but at 50 tokens most answers are cut off before the useful part, so the app defaults to 200 (`--max-tokens 50` reproduces the slide).
+- **`thinking={"type": "disabled"}`** – internal reasoning would consume part of the `max_tokens` budget before any visible text is produced, so it is turned off for this demo.
+- **`system=...`** – a short style instruction (same for both calls) so answers fit in the token limit.
+- **`betas` + `fallbacks: "default"`** – the model's safety classifiers can occasionally decline a harmless request (we saw a `stop_reason=refusal` with an empty answer on the with-context call). With this option the API re-runs a declined request on a fallback model instead of returning nothing.
 - **`response.content`** – a list of content blocks; we keep only the `text` blocks and join them.
 - **`stop_reason == "max_tokens"`** – tells us the answer hit the limit, so the app marks it as truncated instead of silently showing half a sentence.
+- **`if not text.strip()`** – if the model returns no text at all (for example a refusal), the app prints why instead of a blank line.
 
 ### 4. Comparing with and without context
 
@@ -161,7 +173,7 @@ except anthropic.APIError as e:
 1. Delete `past_chat` from `build_context_window()` – does the answer still mention `shipit`? (The documentation alone is often enough; the chat mostly tells the model *which* tool you use.)
 2. Delete `documentation` instead – the model now knows the tool name but has to guess the commands.
 3. Add an irrelevant paragraph to the context. Relevant context helps; noise takes up space in the window and can distract the model.
-4. Lower `--max-tokens` to 20 and watch the answer get truncated.
+4. Run with `--max-tokens 20` and watch the answer get truncated.
 
 ## Key takeaways
 

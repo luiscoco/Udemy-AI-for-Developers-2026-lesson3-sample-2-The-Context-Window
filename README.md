@@ -7,6 +7,42 @@ A small working Python app that demonstrates one idea from the lesson:
 
 The app asks the same question twice – once with **only the user prompt**, once with a **context window** that also contains past conversation and documentation – and prints both answers so you can compare them.
 
+## Detailed Explanation
+
+In this example, we are going to understand one of the most important concepts behind Large Language Models: the context window.
+
+Think of the context window as the model’s temporary working memory for a single request. It contains the information the model can consider when generating its answer.
+
+In our Python application, we start with a simple question: “How do I deploy my service to the staging environment?”
+
+If we send only this question to the AI model, the model does not know anything about our specific project. It may give us a generic answer about deployment tools, cloud platforms, or CI/CD pipelines.
+
+Now we improve the situation by building a richer context window.
+
+Our application combines three sources of information.
+
+First, the user prompt: the actual question we want the model to answer.
+
+Second, the previous conversation. This tells the model that our team recently migrated from Jenkins to a tool called Shipit.
+
+Third, we provide documentation describing the Shipit commands, including how to test and deploy a service.
+
+These pieces of information are combined into a single context and sent to the model.
+
+Now the model can produce a much more specific answer. Instead of guessing, it can use the supplied documentation to explain that we should first run the Shipit test command, and then deploy the service to the staging environment.
+
+The important idea is that the model itself has not been retrained. We simply gave it better information at inference time.
+
+The example therefore demonstrates a fundamental principle of modern AI development: better context often produces better answers.
+
+But context windows are finite. Adding more information is not always better. Irrelevant information consumes space and can distract the model.
+
+So the goal of context engineering is not to provide the largest possible context.
+
+The goal is to provide the most relevant context for the task.
+
+And that principle becomes extremely important when we build AI assistants, coding agents, RAG applications, and agentic systems.
+
 ## Files
 
 | File | Purpose |

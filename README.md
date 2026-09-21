@@ -1,5 +1,7 @@
 # Sample 2 – The Context Window (Slide 4)
 
+## Summary
+
 A small working Python app that demonstrates one idea from the lesson:
 
 > The **context window** is the amount of information the model can consider at once.

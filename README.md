@@ -1,4 +1,4 @@
-# Sample 2 – The Context Window (Slide 4)
+# The Context Window
 
 ## Summary
 
